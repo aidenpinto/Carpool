@@ -19,7 +19,8 @@ A minimalist web application designed to figure out the order in which you pick 
 
 1. **Clone the repository**:
    ```bash
-   git clone git@github.com:aidenpinto/Carpool.git```
+   git clone git@github.com:aidenpinto/Carpool.git
+   ```
 2.  **Run the application**:
     Open the `index.html` file in any web browser.
 

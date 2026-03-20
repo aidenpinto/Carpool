@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route | Smart Carpool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
+        body {
+            background-color: #F5F5F7;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1d1d1f;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 28px;
+        }
+
+        .apple-input {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid #d2d2d7;
+            border-radius: 14px;
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+
+        .apple-input:focus {
+            border-color: #0071e3;
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
+        }
+
+        .apple-button {
+            background: #0071e3;
+            color: white;
+            border-radius: 980px;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .apple-button:hover {
+            background: #0077ed;
+            transform: scale(1.01);
+        }
+
+        .apple-button:active {
+            transform: scale(0.98);
+        }
+
+        .secondary-button {
+            color: #0066cc;
+            font-weight: 400;
+            font-size: 14px;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 2px solid rgba(0,0,0,0.1);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: #0071e3;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-lg">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-semibold tracking-tight">Carpool</h1>
+            <p class="text-gray-500 mt-2">The most efficient way to pick everyone up.</p>
+        </header>
+
+        <main class="glass-card p-8 shadow-2xl">
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 ml-1">Starting Point</label>
+                    <input id="origin" type="text" placeholder="Your current location" class="apple-input w-full">
+                </div>
+
+                <div id="pickup-container">
+                    <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 ml-1">Friends to Pick Up</label>
+                    <div id="pickup-list" class="space-y-3">
+                        <input type="text" class="pickup-input apple-input w-full" placeholder="Friend's address">
+                    </div>
+                    <button onclick="addPickupField()" class="secondary-button mt-3 ml-1">+ Add another friend</button>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 ml-1">Final Destination</label>
+                    <input id="destination" type="text" placeholder="Where are you going?" class="apple-input w-full">
+                </div>
+
+                <button id="optimize-btn" onclick="startOptimization()" class="apple-button w-full py-4 text-lg shadow-lg mt-4">
+                    Get Optimized Directions
+                </button>
+            </div>
+        </main>
+
+        <footer class="text-center mt-8 text-xs text-gray-400">
+            Powered by OSRM & OpenStreetMap Data
+        </footer>
+    </div>
+
+    <script>
+        function addPickupField() {
+            const container = document.getElementById('pickup-list');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'pickup-input apple-input w-full mt-2';
+            input.placeholder = "Friend's address";
+            container.appendChild(input);
+        }
+
+        async function getCoords(address) {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+            try {
+                const response = await fetch(url, { headers: { 'User-Agent': 'CarpoolApp' } });
+                const data = await response.json();
+                return data.length > 0 ? { lat: data[0].lat, lon: data[0].lon, name: address } : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function startOptimization() {
+            const btn = document.getElementById('optimize-btn');
+            const originVal = document.getElementById('origin').value;
+            const destVal = document.getElementById('destination').value;
+            const pickupInputs = document.querySelectorAll('.pickup-input');
+            
+            if (!originVal || !destVal) {
+                alert("Please enter a start and end point.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Finding Best Route...';
+
+            // 1. Geocode all addresses
+            const addresses = [originVal, ...Array.from(pickupInputs).map(i => i.value).filter(v => v !== ""), destVal];
+            const coordResults = [];
+            
+            for (const addr of addresses) {
+                const res = await getCoords(addr);
+                if (res) coordResults.push(res);
+            }
+
+            if (coordResults.length < 2) {
+                alert("Could not find locations. Check your addresses.");
+                btn.disabled = false;
+                btn.innerText = "Get Optimized Directions";
+                return;
+            }
+
+            // 2. Call OSRM Trip API
+            const locString = coordResults.map(c => `${c.lon},${c.lat}`).join(';');
+            const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${locString}?source=first&destination=last&roundtrip=false`;
+
+            try {
+                const osrmRes = await fetch(osrmUrl);
+                const osrmData = await osrmRes.json();
+
+                if (osrmData.code !== 'Ok') throw new Error("Optimization failed");
+
+                // 3. Sort addresses based on OSRM output
+                const waypoints = osrmData.waypoints.sort((a, b) => a.trips_index - b.trips_index);
+                const sortedAddresses = waypoints.map(wp => coordResults[wp.waypoint_index].name);
+
+                // 4. Create Google Maps URL
+                // Format: https://www.google.com/maps/dir/Addr1/Addr2/Addr3
+                const gMapsBase = "https://www.google.com/maps/dir/";
+                const finalUrl = gMapsBase + sortedAddresses.map(a => encodeURIComponent(a)).join('/');
+
+                // Redirect
+                window.open(finalUrl, '_blank');
+            } catch (e) {
+                alert("Error calculating route. Try again.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Get Optimized Directions";
+            }
+        }
+    </script>
+</body>
+</html>

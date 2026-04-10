@@ -110,6 +110,9 @@
                 <button id="optimize-btn" onclick="startOptimization()" class="apple-button w-full py-4 text-lg shadow-lg mt-4">
                     Get Optimized Directions
                 </button>
+                <button id="open-maps-btn" onclick="openGoogleMaps()" class="apple-button w-full py-3 text-base shadow-lg mt-3 opacity-50 cursor-not-allowed" disabled>
+                    Open in Google Maps
+                </button>
             </div>
         </main>
 
@@ -119,6 +122,8 @@
     </div>
 
     <script>
+        let optimizedGoogleMapsUrl = "";
+
         function addPickupField() {
             const container = document.getElementById('pickup-list');
             const input = document.createElement('input');
@@ -126,6 +131,15 @@
             input.className = 'pickup-input apple-input w-full mt-2';
             input.placeholder = "Friend's address";
             container.appendChild(input);
+        }
+
+        function openGoogleMaps() {
+            if (!optimizedGoogleMapsUrl) {
+                alert("Optimize directions first.");
+                return;
+            }
+
+            window.open(optimizedGoogleMapsUrl, '_blank');
         }
 
         async function getCoords(address) {
@@ -141,6 +155,7 @@
 
         async function startOptimization() {
             const btn = document.getElementById('optimize-btn');
+            const openMapsBtn = document.getElementById('open-maps-btn');
             const originVal = document.getElementById('origin').value;
             const destVal = document.getElementById('destination').value;
             const pickupInputs = document.querySelectorAll('.pickup-input');
@@ -152,6 +167,9 @@
 
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Finding Best Route...';
+            optimizedGoogleMapsUrl = "";
+            openMapsBtn.disabled = true;
+            openMapsBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
             // 1. Geocode all addresses
             const addresses = [originVal, ...Array.from(pickupInputs).map(i => i.value).filter(v => v !== ""), destVal];
@@ -188,8 +206,10 @@
                 const gMapsBase = "https://www.google.com/maps/dir/";
                 const finalUrl = gMapsBase + sortedAddresses.map(a => encodeURIComponent(a)).join('/');
 
-                // Redirect
-                window.open(finalUrl, '_blank');
+                // Save URL and let user open it manually (better support on iOS Safari)
+                optimizedGoogleMapsUrl = finalUrl;
+                openMapsBtn.disabled = false;
+                openMapsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } catch (e) {
                 alert("Error calculating route. Try again.");
             } finally {
